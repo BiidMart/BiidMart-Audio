@@ -13,6 +13,9 @@
   "author": "BiidMart Audio",
   "license": "UNLICENSED",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.1",
     "@types/cors": "^2.8.19",
