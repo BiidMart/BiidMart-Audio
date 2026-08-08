@@ -9,18 +9,31 @@ import {
 
 export const knowledgeRepository = {
   create: async (dto: CreateKnowledgeDto): Promise<Knowledge> => {
+    const hasEmbedding = dto.embedding && dto.embedding.length > 0;
     const { rows } = await getPool().query(
-      `INSERT INTO knowledge (title, content, content_type, category, tags, metadata)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO knowledge (title, content, content_type, category, tags, metadata${
+        hasEmbedding ? ", embedding" : ""
+      })
+       VALUES ($1, $2, $3, $4, $5, $6${hasEmbedding ? ", $7::vector" : ""})
        RETURNING *`,
-      [
-        dto.title,
-        dto.content,
-        dto.content_type || "text",
-        dto.category,
-        dto.tags || [],
-        JSON.stringify(dto.metadata || {}),
-      ]
+      hasEmbedding
+        ? [
+            dto.title,
+            dto.content,
+            dto.content_type || "text",
+            dto.category,
+            dto.tags || [],
+            JSON.stringify(dto.metadata || {}),
+            JSON.stringify(dto.embedding),
+          ]
+        : [
+            dto.title,
+            dto.content,
+            dto.content_type || "text",
+            dto.category,
+            dto.tags || [],
+            JSON.stringify(dto.metadata || {}),
+          ]
     );
     return rows[0];
   },
@@ -68,6 +81,12 @@ export const knowledgeRepository = {
     if (dto.tags !== undefined) {
       sets.push(`tags = $${paramIndex++}`);
       values.push(dto.tags);
+    }
+    if (dto.embedding !== undefined) {
+      sets.push(`embedding = $${paramIndex++}::vector`);
+      values.push(
+        dto.embedding ? JSON.stringify(dto.embedding) : null
+      );
     }
     if (dto.metadata !== undefined) {
       sets.push(`metadata = $${paramIndex++}`);
@@ -166,5 +185,30 @@ export const knowledgeRepository = {
       [contentType]
     );
     return rows;
+  },
+
+  /**
+   * Búsqueda semántica usando pgvector cosine distance (<=>).
+   * @param queryEmbedding Vector de la pregunta del cliente
+   * @param limit Máximo de resultados
+   * @param threshold Distancia máxima (menor = más similar). Default: 0.5
+   */
+  searchSemantic: async (
+    queryEmbedding: number[],
+    limit = 5,
+    threshold = 0.5
+  ): Promise<KnowledgeListResponse> => {
+    const embeddingStr = JSON.stringify(queryEmbedding);
+    const { rows: data } = await getPool().query(
+      `SELECT *, embedding <=> $1::vector AS _distance
+       FROM knowledge
+       WHERE is_active = true
+         AND embedding IS NOT NULL
+         AND embedding <=> $1::vector < $2
+       ORDER BY _distance ASC
+       LIMIT $3`,
+      [embeddingStr, threshold, limit]
+    );
+    return { data, total: data.length, limit, offset: 0 };
   },
 };

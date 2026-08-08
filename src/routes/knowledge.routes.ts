@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { adminAuth } from "../middlewares/admin-auth";
 import {
   create,
   findAll,
@@ -13,6 +14,9 @@ import {
 } from "../controllers/knowledge.controller";
 
 const router = Router();
+
+// Todas las rutas de administración de conocimiento requieren autenticación
+router.use(adminAuth);
 
 router.post("/", create);
 router.get("/", findAll);

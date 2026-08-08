@@ -18,4 +18,8 @@ export const env: EnvConfig = {
   WHATSAPP_TOKEN: process.env.WHATSAPP_TOKEN || "",
   WHATSAPP_PHONE_NUMBER_ID: process.env.WHATSAPP_PHONE_NUMBER_ID || "",
   WHATSAPP_VERIFY_TOKEN: process.env.WHATSAPP_VERIFY_TOKEN || "",
+  ADMIN_API_KEY: process.env.ADMIN_API_KEY || "",
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
+  EMBEDDING_PROVIDER: process.env.EMBEDDING_PROVIDER || "openai",
+  EMBEDDING_MODEL: process.env.EMBEDDING_MODEL || "text-embedding-3-small",
 };

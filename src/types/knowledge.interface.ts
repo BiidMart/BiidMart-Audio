@@ -18,6 +18,7 @@ export interface CreateKnowledgeDto {
   content_type?: string;
   category: string;
   tags?: string[];
+  embedding?: number[] | null;
   metadata?: Record<string, unknown>;
 }
 
@@ -27,6 +28,7 @@ export interface UpdateKnowledgeDto {
   content_type?: string;
   category?: string;
   tags?: string[];
+  embedding?: number[] | null;
   metadata?: Record<string, unknown>;
   is_active?: boolean;
 }

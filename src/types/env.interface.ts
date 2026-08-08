@@ -13,4 +13,8 @@ export interface EnvConfig {
   WHATSAPP_TOKEN: string;
   WHATSAPP_PHONE_NUMBER_ID: string;
   WHATSAPP_VERIFY_TOKEN: string;
+  ADMIN_API_KEY: string;
+  OPENAI_API_KEY: string;
+  EMBEDDING_PROVIDER: string;
+  EMBEDDING_MODEL: string;
 }
