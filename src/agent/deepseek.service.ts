@@ -60,6 +60,46 @@ const buildMessages = (context: ConversationContext): DeepSeekMessage[] => {
     { role: "system", content: SYSTEM_PROMPT },
   ];
 
+  // ---------- CONTEXTO ENRIQUECIDO PARA LA IA ----------
+  // Inyectar datos del cliente recolectados durante la conversación
+  // para que la IA adapte su tono y recomendaciones.
+  const clientContextParts: string[] = [];
+
+  // Datos del cliente (si existen)
+  const { collectedData, agentState } = context;
+  if (collectedData.name) {
+    clientContextParts.push(`Cliente: ${collectedData.name}`);
+  }
+  if (collectedData.genre) {
+    clientContextParts.push(`Género de interés: ${collectedData.genre}`);
+  }
+  if (collectedData.projectType) {
+    clientContextParts.push(`Tipo de proyecto: ${collectedData.projectType}`);
+  }
+  if (collectedData.budget) {
+    clientContextParts.push(`Presupuesto mencionado: ${collectedData.budget}`);
+  }
+
+  // Estado de la conversación
+  clientContextParts.push(`Turno #${agentState.turnCount}`);
+  if (agentState.lastToolUsed) {
+    clientContextParts.push(`Última herramienta usada: ${agentState.lastToolUsed}`);
+  }
+  if (agentState.handoffRequested) {
+    clientContextParts.push("El cliente ya solicitó hablar con un humano.");
+  }
+  if (agentState.readyToBuy) {
+    clientContextParts.push("El cliente está listo para comprar.");
+  }
+
+  if (clientContextParts.length > 0) {
+    messages.push({
+      role: "system",
+      content: `[CONTEXTO DE LA CONVERSACIÓN]\n${clientContextParts.join("\n")}`,
+    });
+  }
+  // --------------------------------------------------------
+
   // Solo enviamos los últimos 15 mensajes para no exceder el contexto
   const recentMessages = context.messages.slice(-15);
 
