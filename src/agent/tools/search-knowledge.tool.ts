@@ -46,6 +46,7 @@ export const searchKnowledgeTool: ToolDefinition<
         id: item.id,
         title: item.title,
         content: item.content,
+        category: item.category,
         metadata: item.metadata,
       })),
       total: result.total,
