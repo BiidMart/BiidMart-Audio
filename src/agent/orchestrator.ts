@@ -192,7 +192,7 @@ const buildToolResultSummary = (
       return data.data
         .map(
           (item, i) =>
-            `[${i + 1}] ${item.title}\n${item.content.substring(0, 300)}${item.content.length > 300 ? "..." : ""}\nMetadata: ${JSON.stringify(item.metadata)}`
+            `[${i + 1}] ${item.title}\n${item.content}\nMetadata: ${JSON.stringify(item.metadata)}`
         )
         .join("\n\n");
     }
