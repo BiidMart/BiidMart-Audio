@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { apiClient } from "../api/client";
 import { CATEGORIES } from "../types";
 
@@ -141,21 +141,16 @@ export default function Resources() {
 
   // ─── Archivos ───
 
-  const handleUploadFile = async (resourceId: string, displayName: string, role: string) => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      try {
-        await apiClient.resources.uploadFile(resourceId, file, displayName || file.name, role);
-        await loadDetail(resourceId);
-        await loadItems();
-      } catch (err) {
-        alert(err instanceof Error ? err.message : "Error al subir archivo");
-      }
-    };
-    input.click();
+  // ─── Subida de archivo (se pasa al FileUploadForm como callback) ───
+
+  const handleUploadFile = async (resourceId: string, file: File, displayName: string, role: string) => {
+    try {
+      await apiClient.resources.uploadFile(resourceId, file, displayName || file.name, role);
+      await loadDetail(resourceId);
+      await loadItems();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error al subir archivo");
+    }
   };
 
   const handleDeleteFile = async (resourceId: string, fileId: string) => {
@@ -351,7 +346,7 @@ export default function Resources() {
             {/* Agregar archivo */}
             <div className="border-t pt-4">
               <h4 className="text-sm font-semibold text-gray-700 mb-2">+ Agregar archivo</h4>
-              <FileUploadForm onUpload={(displayName, role) => handleUploadFile(detail.id, displayName, role)} />
+              <FileUploadForm onUpload={(file, displayName, role) => handleUploadFile(detail.id, file, displayName, role)} />
             </div>
 
             <div className="mt-4 pt-3 border-t flex justify-between">
@@ -368,12 +363,27 @@ export default function Resources() {
 }
 
 // Sub-componente: formulario de subida de archivo
-function FileUploadForm({ onUpload }: { onUpload: (displayName: string, role: string) => void }) {
+function FileUploadForm({ onUpload }: { onUpload: (file: File, displayName: string, role: string) => void }) {
   const [displayName, setDisplayName] = useState("");
   const [role, setRole] = useState("file");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    onUpload(file, displayName, role);
+    // Limpiar el input para permitir subir el mismo archivo otra vez
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   return (
     <div className="flex items-end gap-2">
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={handleFileChange}
+      />
       <div className="flex-1">
         <label className="block text-xs font-medium text-gray-600 mb-1">Nombre visible</label>
         <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)}
@@ -387,7 +397,8 @@ function FileUploadForm({ onUpload }: { onUpload: (displayName: string, role: st
           {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
       </div>
-      <button onClick={() => onUpload(displayName, role)}
+      <button
+        onClick={() => fileInputRef.current?.click()}
         className="px-4 py-1.5 bg-indigo-600 text-white rounded text-sm font-medium hover:bg-indigo-700 transition-colors shrink-0">
         Subir archivo
       </button>
