@@ -21,6 +21,7 @@ export default function Layout() {
     { to: "/", label: "Dashboard", icon: "📊" },
     { to: "/knowledge", label: "Knowledge", icon: "📚" },
     { to: "/conversations", label: "Conversaciones", icon: "💬" },
+    { to: "/resources", label: "Recursos", icon: "📦" },
   ];
 
   const isActive = (path: string) => {

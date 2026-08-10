@@ -12,6 +12,7 @@ import agentRoutes from "./routes/agent.routes";
 import webhookRoutes from "./routes/webhook.routes";
 import clientRoutes from "./routes/client.routes";
 import paymentRoutes from "./routes/payment.routes";
+import resourceRoutes from "./routes/resource.routes";
 
 const app = express();
 
@@ -62,6 +63,7 @@ app.use("/api/agent", agentRoutes);
 app.use("/api/webhook", webhookRoutes);
 app.use("/api/clients", clientRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/resources", resourceRoutes);
 
 // ---------- Error Handling ----------
 

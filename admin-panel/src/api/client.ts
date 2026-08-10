@@ -77,4 +77,60 @@ export const apiClient = {
         headers: getHeaders(),
       }).then(handleResponse),
   },
+
+  // ─── Resources CRUD ───
+  resources: {
+    list: (includeInactive = false) => {
+      const qs = includeInactive ? "?includeInactive=true" : "";
+      return fetch(`${BASE_URL}/resources${qs}`, {
+        headers: getHeaders(),
+      }).then(handleResponse);
+    },
+
+    getById: (id: string) =>
+      fetch(`${BASE_URL}/resources/${id}`, {
+        headers: getHeaders(),
+      }).then(handleResponse),
+
+    create: (data: Record<string, unknown>) =>
+      fetch(`${BASE_URL}/resources`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      }).then(handleResponse),
+
+    update: (id: string, data: Record<string, unknown>) =>
+      fetch(`${BASE_URL}/resources/${id}`, {
+        method: "PUT",
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      }).then(handleResponse),
+
+    remove: (id: string) =>
+      fetch(`${BASE_URL}/resources/${id}`, {
+        method: "DELETE",
+        headers: getHeaders(),
+      }).then(handleResponse),
+
+    // ─── Files ───
+    uploadFile: (resourceId: string, file: File, displayName: string, role = "file", sortOrder = 0) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("display_name", displayName);
+      formData.append("role", role);
+      formData.append("sort_order", String(sortOrder));
+      const apiKey = localStorage.getItem("admin_api_key") || "";
+      return fetch(`${BASE_URL}/resources/${resourceId}/files`, {
+        method: "POST",
+        headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+        body: formData,
+      }).then(handleResponse);
+    },
+
+    deleteFile: (resourceId: string, fileId: string) =>
+      fetch(`${BASE_URL}/resources/${resourceId}/files/${fileId}`, {
+        method: "DELETE",
+        headers: getHeaders(),
+      }).then(handleResponse),
+  },
 };
