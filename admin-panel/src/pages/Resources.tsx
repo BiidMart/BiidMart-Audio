@@ -141,18 +141,6 @@ export default function Resources() {
 
   // ─── Archivos ───
 
-  // ─── Subida de archivo (se pasa al FileUploadForm como callback) ───
-
-  const handleUploadFile = async (resourceId: string, file: File, displayName: string, role: string) => {
-    try {
-      await apiClient.resources.uploadFile(resourceId, file, displayName || file.name, role);
-      await loadDetail(resourceId);
-      await loadItems();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Error al subir archivo");
-    }
-  };
-
   const handleDeleteFile = async (resourceId: string, fileId: string) => {
     if (!confirm("¿Eliminar este archivo?")) return;
     try {
@@ -343,10 +331,9 @@ export default function Resources() {
               <p className="text-sm text-gray-400 mb-4">Sin archivos.</p>
             )}
 
-            {/* Agregar archivo */}
+            {/* Agregar archivo: botón toggle + formulario colapsable */}
             <div className="border-t pt-4">
-              <h4 className="text-sm font-semibold text-gray-700 mb-2">+ Agregar archivo</h4>
-              <FileUploadForm onUpload={(file, displayName, role) => handleUploadFile(detail.id, file, displayName, role)} />
+              <FileUploadSection resourceId={detail.id} onFileUploaded={() => { loadDetail(detail.id); loadItems(); }} />
             </div>
 
             <div className="mt-4 pt-3 border-t flex justify-between">
@@ -362,46 +349,95 @@ export default function Resources() {
   );
 }
 
-// Sub-componente: formulario de subida de archivo
-function FileUploadForm({ onUpload }: { onUpload: (file: File, displayName: string, role: string) => void }) {
+// Sub-componente: sección colapsable para agregar archivos
+function FileUploadSection({ resourceId, onFileUploaded }: { resourceId: string; onFileUploaded: () => void }) {
+  const [open, setOpen] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [role, setRole] = useState("file");
+  const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    onUpload(file, displayName, role);
-    // Limpiar el input para permitir subir el mismo archivo otra vez
-    if (fileInputRef.current) fileInputRef.current.value = "";
+
+    const name = displayName.trim();
+    if (!name) {
+      setError("Coloca un nombre para el archivo.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    setError("");
+    apiClient.resources
+      .uploadFile(resourceId, file, name, role)
+      .then(() => {
+        // Limpiar nombre y resetear input después de subida exitosa
+        setDisplayName("");
+        setRole("file");
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        onFileUploaded();
+      })
+      .catch((err: Error) => {
+        setError(err.message || "Error al subir archivo");
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      });
   };
 
-  return (
-    <div className="flex items-end gap-2">
-      <input
-        ref={fileInputRef}
-        type="file"
-        className="hidden"
-        onChange={handleFileChange}
-      />
-      <div className="flex-1">
-        <label className="block text-xs font-medium text-gray-600 mb-1">Nombre visible</label>
-        <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)}
-          className="w-full px-2 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          placeholder="Audio original del cliente" />
-      </div>
-      <div className="w-32">
-        <label className="block text-xs font-medium text-gray-600 mb-1">Rol</label>
-        <select value={role} onChange={(e) => setRole(e.target.value)}
-          className="w-full px-2 py-1.5 border rounded text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
-        </select>
-      </div>
+  const handleClickUpload = () => {
+    fileInputRef.current?.click();
+  };
+
+  if (!open) {
+    return (
       <button
-        onClick={() => fileInputRef.current?.click()}
-        className="px-4 py-1.5 bg-indigo-600 text-white rounded text-sm font-medium hover:bg-indigo-700 transition-colors shrink-0">
-        Subir archivo
+        onClick={() => setOpen(true)}
+        className="text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
+      >
+        + Agregar archivo
       </button>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-semibold text-gray-700">Agregar archivo</span>
+        <button onClick={() => { setOpen(false); setError(""); }} className="text-xs text-gray-400 hover:text-gray-600">
+          Cancelar
+        </button>
+      </div>
+
+      {error && (
+        <p className="text-xs text-red-600 mb-2">{error}</p>
+      )}
+
+      <div className="flex items-end gap-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          onChange={handleFileSelected}
+        />
+        <div className="flex-1">
+          <label className="block text-xs font-medium text-gray-600 mb-1">Nombre visible</label>
+          <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)}
+            className="w-full px-2 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="Audio original del cliente" />
+        </div>
+        <div className="w-32">
+          <label className="block text-xs font-medium text-gray-600 mb-1">Rol</label>
+          <select value={role} onChange={(e) => setRole(e.target.value)}
+            className="w-full px-2 py-1.5 border rounded text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </div>
+        <button
+          onClick={handleClickUpload}
+          className="px-4 py-1.5 bg-indigo-600 text-white rounded text-sm font-medium hover:bg-indigo-700 transition-colors shrink-0">
+          Subir archivo
+        </button>
+      </div>
     </div>
   );
 }
