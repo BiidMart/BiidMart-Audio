@@ -54,6 +54,7 @@ export interface SearchKnowledgeOutput {
     id: string;
     title: string;
     content: string;
+    category: string;
     metadata: Record<string, unknown>;
   }[];
   total: number;

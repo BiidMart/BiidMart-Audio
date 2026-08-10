@@ -189,10 +189,13 @@ const buildToolResultSummary = (
     case "search_knowledge": {
       const data = output as SearchKnowledgeOutput;
       if (data.data.length === 0) return "No se encontró información.";
-      return data.data
+      // Priorizar: solo enviar los 2 resultados más relevantes para evitar
+      // que DeepSeek mezcle información de diferentes conocimientos.
+      const topResults = data.data.slice(0, 2);
+      return topResults
         .map(
           (item, i) =>
-            `[${i + 1}] ${item.title}\n${item.content}\nMetadata: ${JSON.stringify(item.metadata)}`
+            `[${i + 1}] ${item.title} (categoría: ${item.category})\n${item.content}\nMetadata: ${JSON.stringify(item.metadata)}`
         )
         .join("\n\n");
     }
