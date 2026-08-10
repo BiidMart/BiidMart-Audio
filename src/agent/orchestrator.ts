@@ -192,7 +192,7 @@ const buildToolResultSummary = (
       return data.data
         .map(
           (item, i) =>
-            `[${i + 1}] ${item.title}\n${item.content}\nMetadata: ${JSON.stringify(item.metadata)}`
+            `[${i + 1}] ${item.title}\n${item.content.substring(0, 300)}${item.content.length > 300 ? "..." : ""}\nMetadata: ${JSON.stringify(item.metadata)}`
         )
         .join("\n\n");
     }
@@ -214,7 +214,7 @@ const buildToolResultSummary = (
  * que no necesita ser reformulada por DeepSeek.
  */
 const canUseDirectOutput = (toolName: ToolName): boolean => {
-  return ["ask_clarification", "handoff_to_human", "mark_ready_to_buy"].includes(
+  return ["ask_clarification", "handoff_to_human"].includes(
     toolName
   );
 };
