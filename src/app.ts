@@ -42,6 +42,18 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ---------- Admin Panel (static files) ----------
+import path from "path";
+const adminDist = path.join(__dirname, "..", "admin-panel", "dist");
+app.use("/admin", express.static(adminDist));
+// SPA fallback: rutas del panel que no son archivos estáticos devuelven index.html
+app.get("/admin", (_req, res) => {
+  res.sendFile(path.join(adminDist, "index.html"));
+});
+app.get("/admin{/*path}", (_req, res) => {
+  res.sendFile(path.join(adminDist, "index.html"));
+});
+
 // ---------- Routes ----------
 
 app.use("/", routes);

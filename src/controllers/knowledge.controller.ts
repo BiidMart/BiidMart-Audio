@@ -39,7 +39,8 @@ export const findAll = async (
   try {
     const limit = req.query.limit ? Number(req.query.limit) : undefined;
     const offset = req.query.offset ? Number(req.query.offset) : undefined;
-    const result = await knowledgeService.findAll(limit, offset);
+    const includeInactive = req.query.includeInactive === "true";
+    const result = await knowledgeService.findAll(limit, offset, includeInactive);
     res.json(result);
   } catch (error) {
     next(error);

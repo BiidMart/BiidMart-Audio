@@ -38,13 +38,18 @@ export const knowledgeRepository = {
     return rows[0];
   },
 
-  findAll: async (limit = 50, offset = 0): Promise<KnowledgeListResponse> => {
+  findAll: async (
+    limit = 50,
+    offset = 0,
+    includeInactive = false
+  ): Promise<KnowledgeListResponse> => {
+    const activeFilter = includeInactive ? "" : "WHERE is_active = true";
     const { rows: data } = await getPool().query(
-      "SELECT * FROM knowledge WHERE is_active = true ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+      `SELECT * FROM knowledge ${activeFilter} ORDER BY updated_at DESC LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
     const { rows: count } = await getPool().query(
-      "SELECT COUNT(*)::int AS total FROM knowledge WHERE is_active = true"
+      `SELECT COUNT(*)::int AS total FROM knowledge ${activeFilter}`
     );
     return { data, total: count[0].total, limit, offset };
   },

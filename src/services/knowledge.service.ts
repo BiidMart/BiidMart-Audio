@@ -38,8 +38,8 @@ export const knowledgeService = {
     });
   },
 
-  findAll: async (limit?: number, offset?: number): Promise<KnowledgeListResponse> => {
-    return knowledgeRepository.findAll(limit, offset);
+  findAll: async (limit?: number, offset?: number, includeInactive = false): Promise<KnowledgeListResponse> => {
+    return knowledgeRepository.findAll(limit, offset, includeInactive);
   },
 
   findById: async (id: string): Promise<Knowledge | null> => {
