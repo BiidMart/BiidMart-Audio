@@ -1,8 +1,8 @@
 # Dependencies
 node_modules/
 
-# Build output
-dist/
+# Build output (solo el backend — el admin-panel/dist se versiona para Render)
+/dist/
 
 # Environment variables (el .env real no se sube)
 .env
