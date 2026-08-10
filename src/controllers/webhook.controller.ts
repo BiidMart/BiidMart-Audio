@@ -89,13 +89,47 @@ export const receiveMessage = async (
 // Helper: Envía la respuesta del Agente vía WhatsApp
 // =============================================
 
+/**
+ * Limpia el mensaje antes de enviarlo a WhatsApp:
+ * - Elimina URLs duplicadas (misma URL repetida como texto y como link)
+ * - Convierte asteriscos Markdown en formato simple para WhatsApp
+ */
+const cleanWhatsAppMessage = (text: string): string => {
+  // 1. Eliminar URLs duplicadas: [url](url) → url
+  let cleaned = text.replace(/\[(https?:\/\/[^\]]+)\]\(\1\)/g, "$1");
+
+  // 2. Eliminar asteriscos Markdown que no son realmente necesarios
+  //    Reemplazar **texto** → texto (WhatsApp tiene su propio formateo de bold)
+  cleaned = cleaned.replace(/\*\*(.+?)\*\*/g, "$1");
+  //    Reemplazar *texto* → texto
+  cleaned = cleaned.replace(/\*(.+?)\*/g, "$1");
+
+  // 3. Eliminar líneas duplicadas (misma URL en dos líneas consecutivas)
+  const lines = cleaned.split("\n");
+  const uniqueLines: string[] = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed && uniqueLines.length > 0) {
+      const lastTrimmed = uniqueLines[uniqueLines.length - 1].trim();
+      if (trimmed === lastTrimmed) continue; // saltar duplicado consecutivo
+    }
+    uniqueLines.push(line);
+  }
+  cleaned = uniqueLines.join("\n");
+
+  return cleaned;
+};
+
 const sendAgentResponse = (
   phone: string,
   result: { response: string; attachments?: string[] }
 ): void => {
+  // Limpiar el mensaje antes de enviarlo
+  const cleanedResponse = cleanWhatsAppMessage(result.response);
+
   // Enviar texto principal
   whatsappService
-    .sendText(phone, result.response)
+    .sendText(phone, cleanedResponse)
     .catch((err) => logger.error(`[Webhook] Failed to send text: ${err.message}`));
 
   // Enviar archivos adjuntos

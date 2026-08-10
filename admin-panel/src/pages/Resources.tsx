@@ -363,7 +363,7 @@ function FileUploadSection({ resourceId, onFileUploaded }: { resourceId: string;
 
     const name = displayName.trim();
     if (!name) {
-      setError("Coloca un nombre para el archivo.");
+      setError("Debes colocar un nombre para el archivo antes de subirlo.");
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
@@ -380,7 +380,7 @@ function FileUploadSection({ resourceId, onFileUploaded }: { resourceId: string;
       })
       .catch((err: Error) => {
         setError(err.message || "Error al subir archivo");
-        if (fileInputRef.current) fileInputRef.current.value = "";
+        // NO limpiar el nombre ni el archivo en caso de error — permitir reintentar
       });
   };
 
