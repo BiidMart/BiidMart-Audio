@@ -106,7 +106,7 @@ export const orchestrator = {
 
             conversationMemory.addMessage(sessionId, {
               role: "agent",
-              content: response,
+              content: "[Se envió información de pago]",
               timestamp: new Date().toISOString(),
             });
 
