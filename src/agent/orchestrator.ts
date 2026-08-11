@@ -81,6 +81,50 @@ export const orchestrator = {
         }
       }
 
+      // ---------- PRE-PROCESADOR DE INTENCIÓN DE PAGO ----------
+      // Si el cliente pregunta cómo/dónde pagar, forzar búsqueda en payments
+      // y construir respuesta determinista con los datos oficiales.
+      const paymentPattern = /\b(pago|pagar|pago\b.*\b(link|enlace|Nequi|cuenta|transferencia|tarjeta|bancolombia|dónde|como|donde|hago)|cu.nta\b.*\b(bancaria|banco|pago)|datos\b.*\bpago|información\b.*\bpago)\b/i;
+      if (paymentPattern.test(message)) {
+        logger.info("[Agent] Pre-processor: payment request detected, forcing search_knowledge");
+        try {
+          // Ejecutar search_knowledge directamente con categoría payments
+          const knowledgeOutput = await toolbelt.execute("search_knowledge", {
+            query: message,
+            category: "payments",
+            limit: 1,
+          } as any);
+
+          const knowledgeData = knowledgeOutput as SearchKnowledgeOutput;
+          if (knowledgeData.data.length > 0) {
+            const paymentInfo = knowledgeData.data[0];
+            // Usar DeepSeek SOLO para formular una respuesta conversacional
+            // con los datos oficiales de pago ya determinados
+            const toolSummary = `=== DATOS OFICIALES DE PAGO (INMUTABLES) ===\n${paymentInfo.content}\n=== FIN DATOS OFICIALES ===\n\nFormula una respuesta breve y amable usando EXACTAMENTE estos datos. NO modifiques números, enlaces ni nombres.`;
+            const response = await deepseekService.formulateResponse(context, toolSummary);
+
+            const result: AgentTurnResult = {
+              phase: "responding",
+              toolUsed: "search_knowledge",
+              response,
+            };
+
+            conversationMemory.addMessage(sessionId, {
+              role: "agent",
+              content: response,
+              timestamp: new Date().toISOString(),
+            });
+
+            logger.info("[Agent] Pre-processor: payment response generated");
+            return result;
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          logger.warn(`[Agent] Pre-processor: payment search failed (${msg}), falling back to DeepSeek`);
+          // Fallback: dejar que DeepSeek decida normalmente
+        }
+      }
+
       // ---------- PASO 2: DEEPSEEK DECIDE ----------
       context.agentState.currentPhase = "deciding";
       const decision = await deepseekService.decide(context);
@@ -248,9 +292,12 @@ const buildToolResultSummary = (
 
     case "get_multimedia": {
       const data = output as GetMultimediaOutput;
-      return data.files
-        .map((f) => `- ${f.title} (${f.type}): ${f.url}`)
-        .join("\n");
+      if (data.files.length === 0) return "No se encontraron archivos multimedia.";
+      // NO incluir URLs en el texto — los archivos se envían por attachments.
+      // Solo informar cuántos archivos hay y sus nombres para que DeepSeek
+      // pueda mencionarlos sin duplicar la información.
+      const fileNames = data.files.map((f) => f.title).join(", ");
+      return `Se encontraron ${data.files.length} archivos: ${fileNames}. Los archivos se enviarán a continuación.`;
     }
 
     default:
