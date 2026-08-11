@@ -314,10 +314,10 @@ const buildDirectToolResult = (
 const extractAttachments = (
   toolName: ToolName,
   output: unknown
-): string[] | undefined => {
+): { url: string; display_name: string }[] | undefined => {
   if (toolName === "get_multimedia") {
     const data = output as GetMultimediaOutput;
-    return data.files.map((f) => f.url);
+    return data.files.map((f) => ({ url: f.url, display_name: f.display_name }));
   }
   return undefined;
 };

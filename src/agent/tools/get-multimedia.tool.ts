@@ -61,6 +61,7 @@ export const getMultimediaTool: ToolDefinition<
             url: res.file_url,
             type: res.file_type,
             title: res.display_name || res.title,
+            display_name: res.display_name || res.title,
           });
         }
       }
@@ -90,6 +91,7 @@ export const getMultimediaTool: ToolDefinition<
           url: fileInfo.url,
           type: item.content_type,
           title: item.title,
+          display_name: item.title,
         });
       } catch {
         logger.warn(`[Multimedia] File not found in storage: ${filePath}`);

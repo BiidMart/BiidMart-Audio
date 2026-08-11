@@ -37,7 +37,7 @@ export interface MarkReadyToBuyInput {
 
 export interface SendResponseInput {
   text: string;
-  attachments?: string[];
+  attachments?: { url: string; display_name: string }[];
 }
 
 export type ToolInput =
@@ -65,6 +65,7 @@ export interface GetMultimediaOutput {
     url: string;
     type: string;
     title: string;
+    display_name: string;
   }[];
 }
 
@@ -87,7 +88,7 @@ export interface MarkReadyToBuyOutput {
 export interface SendResponseOutput {
   sent: boolean;
   text: string;
-  attachments?: string[];
+  attachments?: { url: string; display_name: string }[];
 }
 
 export type ToolOutput =

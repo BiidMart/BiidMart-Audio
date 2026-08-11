@@ -122,7 +122,7 @@ const cleanWhatsAppMessage = (text: string): string => {
 
 const sendAgentResponse = (
   phone: string,
-  result: { response: string; attachments?: string[] }
+  result: { response: string; attachments?: { url: string; display_name: string }[] }
 ): void => {
   // Limpiar el mensaje antes de enviarlo
   const cleanedResponse = cleanWhatsAppMessage(result.response);
@@ -132,27 +132,33 @@ const sendAgentResponse = (
     .sendText(phone, cleanedResponse)
     .catch((err) => logger.error(`[Webhook] Failed to send text: ${err.message}`));
 
-  // Enviar archivos adjuntos
+  // Enviar archivos adjuntos con su nombre visible antes de cada uno
   if (result.attachments && result.attachments.length > 0) {
-    for (const url of result.attachments) {
-      // Determinar tipo por extensión
-      if (url.match(/\.(mp3|wav|ogg|m4a)($|\?)/i)) {
-        whatsappService
-          .sendAudio(phone, url)
-          .catch((err) => logger.error(`[Webhook] Failed to send audio: ${err.message}`));
-      } else if (url.match(/\.(jpg|jpeg|png|webp)($|\?)/i)) {
-        whatsappService
-          .sendImage(phone, url)
-          .catch((err) => logger.error(`[Webhook] Failed to send image: ${err.message}`));
-      } else if (url.match(/\.(mp4|mov)($|\?)/i)) {
-        whatsappService
-          .sendVideo(phone, url)
-          .catch((err) => logger.error(`[Webhook] Failed to send video: ${err.message}`));
-      } else {
-        whatsappService
-          .sendDocument(phone, url, "archivo")
-          .catch((err) => logger.error(`[Webhook] Failed to send document: ${err.message}`));
+    const sendFiles = async () => {
+      for (const att of result.attachments!) {
+        // Enviar nombre visible como mensaje de texto antes del archivo
+        if (att.display_name) {
+          await whatsappService.sendText(phone, att.display_name).catch(() => {});
+        }
+        // Enviar el archivo
+        const url = att.url;
+        try {
+          if (url.match(/\.(mp3|wav|ogg|m4a)($|\?)/i)) {
+            await whatsappService.sendAudio(phone, url);
+          } else if (url.match(/\.(jpg|jpeg|png|webp)($|\?)/i)) {
+            await whatsappService.sendImage(phone, url);
+          } else if (url.match(/\.(mp4|mov)($|\?)/i)) {
+            await whatsappService.sendVideo(phone, url);
+          } else {
+            await whatsappService.sendDocument(phone, url, att.display_name || "archivo");
+          }
+        } catch (err) {
+          logger.error(`[Webhook] Failed to send file: ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
-    }
+    };
+    sendFiles().catch((err) =>
+      logger.error(`[Webhook] Failed to send attachments: ${err.message}`)
+    );
   }
 };
