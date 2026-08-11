@@ -61,6 +61,7 @@ export interface SearchKnowledgeOutput {
 }
 
 export interface GetMultimediaOutput {
+  description: string | null;
   files: {
     url: string;
     type: string;

@@ -199,12 +199,15 @@ const handleToolCall = async (
 
   // Enviar la respuesta
   const attachments = extractAttachments(toolName, output);
+  // Extraer descripción si la herramienta la proporciona (get_multimedia)
+  const description = extractDescription(toolName, output);
   await toolbelt.execute("send_response", { text: response, attachments });
 
   return {
     phase: "responding",
     toolUsed: toolName,
     response,
+    description,
     attachments,
   };
 };
@@ -306,6 +309,20 @@ const buildDirectToolResult = (
         response: "Lo siento, no pude procesar tu solicitud.",
       };
   }
+};
+
+/**
+ * Extrae la descripción del output de herramientas que la proporcionan.
+ */
+const extractDescription = (
+  toolName: ToolName,
+  output: unknown
+): string | null | undefined => {
+  if (toolName === "get_multimedia") {
+    const data = output as GetMultimediaOutput;
+    return data.description;
+  }
+  return undefined;
 };
 
 /**

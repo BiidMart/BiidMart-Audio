@@ -122,43 +122,54 @@ const cleanWhatsAppMessage = (text: string): string => {
 
 const sendAgentResponse = (
   phone: string,
-  result: { response: string; attachments?: { url: string; display_name: string }[] }
+  result: { response: string; description?: string | null; attachments?: { url: string; display_name: string }[] }
 ): void => {
-  // Limpiar el mensaje antes de enviarlo
-  const cleanedResponse = cleanWhatsAppMessage(result.response);
+  const sendAll = async () => {
+    // 1. Enviar descripción del recurso PRIMERO (si existe)
+    if (result.description) {
+      const desc = cleanWhatsAppMessage(result.description);
+      await whatsappService.sendText(phone, desc);
+    }
 
-  // Enviar texto principal
-  whatsappService
-    .sendText(phone, cleanedResponse)
-    .catch((err) => logger.error(`[Webhook] Failed to send text: ${err.message}`));
+    // 2. Enviar mensaje principal del agente (await para garantizar orden)
+    const cleanedResponse = cleanWhatsAppMessage(result.response);
+    const textSent = await whatsappService.sendText(phone, cleanedResponse);
+    if (!textSent) {
+      logger.warn(`[Webhook] sendText returned false for main message`);
+    }
 
-  // Enviar archivos adjuntos con su nombre visible antes de cada uno
-  if (result.attachments && result.attachments.length > 0) {
-    const sendFiles = async () => {
-      for (const att of result.attachments!) {
-        // Enviar nombre visible como mensaje de texto antes del archivo
+    // 3. Enviar archivos: display_name → archivo → display_name → archivo
+    if (result.attachments && result.attachments.length > 0) {
+      for (const att of result.attachments) {
+        // Enviar nombre visible antes del archivo
         if (att.display_name) {
-          await whatsappService.sendText(phone, att.display_name).catch(() => {});
-        }
-        // Enviar el archivo
-        const url = att.url;
-        try {
-          if (url.match(/\.(mp3|wav|ogg|m4a)($|\?)/i)) {
-            await whatsappService.sendAudio(phone, url);
-          } else if (url.match(/\.(jpg|jpeg|png|webp)($|\?)/i)) {
-            await whatsappService.sendImage(phone, url);
-          } else if (url.match(/\.(mp4|mov)($|\?)/i)) {
-            await whatsappService.sendVideo(phone, url);
-          } else {
-            await whatsappService.sendDocument(phone, url, att.display_name || "archivo");
+          const nameSent = await whatsappService.sendText(phone, att.display_name);
+          if (!nameSent) {
+            logger.warn(`[Webhook] sendText returned false for display_name: "${att.display_name}"`);
           }
-        } catch (err) {
-          logger.error(`[Webhook] Failed to send file: ${err instanceof Error ? err.message : String(err)}`);
+        }
+        // Enviar el archivo y verificar resultado
+        const url = att.url;
+        let fileSent = false;
+        if (url.match(/\.(mp3|wav|ogg|m4a)($|\?)/i)) {
+          fileSent = await whatsappService.sendAudio(phone, url);
+        } else if (url.match(/\.(jpg|jpeg|png|webp)($|\?)/i)) {
+          fileSent = await whatsappService.sendImage(phone, url);
+        } else if (url.match(/\.(mp4|mov)($|\?)/i)) {
+          fileSent = await whatsappService.sendVideo(phone, url);
+        } else {
+          fileSent = await whatsappService.sendDocument(phone, url, att.display_name || "archivo");
+        }
+        if (!fileSent) {
+          logger.error(`[Webhook] Failed to send file: ${url} (display_name: "${att.display_name}")`);
         }
       }
-    };
-    sendFiles().catch((err) =>
-      logger.error(`[Webhook] Failed to send attachments: ${err.message}`)
-    );
-  }
+    }
+
+    logger.info(`[Webhook] All messages sent to ${phone}`);
+  };
+
+  sendAll().catch((err) =>
+    logger.error(`[Webhook] sendAll failed: ${err instanceof Error ? err.message : String(err)}`)
+  );
 };

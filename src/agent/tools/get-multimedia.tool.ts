@@ -68,7 +68,9 @@ export const getMultimediaTool: ToolDefinition<
 
       if (files.length > 0) {
         logger.info(`[Multimedia] Found ${files.length} files in resources`);
-        return { files };
+        // Extraer la descripción del primer recurso encontrado
+        const description = (resources[0] as ResourceSearchResult)?.description || null;
+        return { description, files };
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -99,7 +101,7 @@ export const getMultimediaTool: ToolDefinition<
     }
 
     logger.info(`[Multimedia] Returning ${files.length} files`);
-    return { files };
+    return { description: null, files };
   },
 };
 

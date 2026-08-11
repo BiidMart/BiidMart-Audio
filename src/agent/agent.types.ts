@@ -54,6 +54,7 @@ export interface AgentTurnResult {
   phase: AgentPhase;
   toolUsed: ToolName | null;
   response: string;
+  description?: string | null;
   attachments?: { url: string; display_name: string }[];
   handoffReason?: string;
   error?: string;
