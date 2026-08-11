@@ -45,6 +45,42 @@ export const orchestrator = {
     );
 
     try {
+      // ---------- PASO 1.5: PRE-PROCESADOR DE INTENCIONES ----------
+      // Si el cliente pide muestras/ejemplos/demos, forzar get_multimedia
+      // sin consultar a DeepSeek para evitar preguntas innecesarias
+      // o respuestas con texto en lugar del archivo real.
+      const samplePattern = /\b(muestra|ejemplo|demo|escuchar|audio\b.*\benvi|mandar?\b.*\b(muestra|audio|ejemplo)|tienes?\b.*\b(muestra|audio|ejemplo|demo))/i;
+      if (samplePattern.test(message)) {
+        logger.info(`[Agent] Pre-processor: sample request detected, forcing get_multimedia`);
+        context.agentState.currentPhase = "executing";
+
+        // Extraer posible género/estilo del mensaje para pasarlo como tag
+        const genreMatch = message.match(/\b(vallenato|reggaetón|reggaeton|pop|rock|trap|rap|salsa|merengue|bachata|popular|urbano|música popular)\b/i);
+        const tags = genreMatch ? [genreMatch[1].toLowerCase()] : undefined;
+
+        try {
+          const result = await handleToolCall(
+            context,
+            sessionId,
+            "get_multimedia",
+            { content_type: "audio_sample", tags }
+          );
+
+          conversationMemory.addMessage(sessionId, {
+            role: "agent",
+            content: result.response,
+            timestamp: new Date().toISOString(),
+          });
+
+          logger.info(`[Agent] Pre-processor: get_multimedia completed`);
+          return result;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          logger.warn(`[Agent] Pre-processor: get_multimedia failed (${msg}), falling back to DeepSeek`);
+          // Fallback: dejar que DeepSeek decida normalmente
+        }
+      }
+
       // ---------- PASO 2: DEEPSEEK DECIDE ----------
       context.agentState.currentPhase = "deciding";
       const decision = await deepseekService.decide(context);
