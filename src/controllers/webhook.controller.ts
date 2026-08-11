@@ -125,17 +125,17 @@ const sendAgentResponse = (
   result: { response: string; description?: string | null; attachments?: { url: string; display_name: string }[] }
 ): void => {
   const sendAll = async () => {
-    // 1. Enviar descripción del recurso PRIMERO (si existe)
-    if (result.description) {
-      const desc = cleanWhatsAppMessage(result.description);
-      await whatsappService.sendText(phone, desc);
-    }
-
-    // 2. Enviar mensaje principal del agente (await para garantizar orden)
+    // 1. Enviar mensaje principal del agente PRIMERO
     const cleanedResponse = cleanWhatsAppMessage(result.response);
     const textSent = await whatsappService.sendText(phone, cleanedResponse);
     if (!textSent) {
       logger.warn(`[Webhook] sendText returned false for main message`);
+    }
+
+    // 2. Enviar descripción del recurso DESPUÉS (si existe)
+    if (result.description) {
+      const desc = cleanWhatsAppMessage(result.description);
+      await whatsappService.sendText(phone, desc);
     }
 
     // 3. Enviar archivos: solo los audios/imágenes/videos en su orden original.
