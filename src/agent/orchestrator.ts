@@ -84,7 +84,7 @@ export const orchestrator = {
       // ---------- PRE-PROCESADOR DE INTENCIÓN DE PAGO ----------
       // Si el cliente pregunta cómo/dónde pagar, forzar búsqueda en payments
       // y enviar los datos oficiales DIRECTAMENTE, sin pasar por DeepSeek.
-      const paymentPattern = /\b(pago|pagar|pago\b.*\b(link|enlace|Nequi|cuenta|transferencia|tarjeta|bancolombia|dónde|como|donde|hago)|cu.nta\b.*\b(bancaria|banco|pago)|datos\b.*\bpago|información\b.*\bpago)\b/i;
+      const paymentPattern = /\b(pag\w*|depositar|depósito|deposito|consignar|consigno|transferir|transferencia|transfiero|Nequi|cuenta|bancolombia)\b/i;
       if (paymentPattern.test(message)) {
         logger.info("[Agent] Pre-processor: payment request detected, forcing search_knowledge");
         try {
