@@ -83,7 +83,7 @@ export const orchestrator = {
 
       // ---------- PRE-PROCESADOR DE INTENCIÓN DE PAGO ----------
       // Si el cliente pregunta cómo/dónde pagar, forzar búsqueda en payments
-      // y construir respuesta determinista con los datos oficiales.
+      // y enviar los datos oficiales DIRECTAMENTE, sin pasar por DeepSeek.
       const paymentPattern = /\b(pago|pagar|pago\b.*\b(link|enlace|Nequi|cuenta|transferencia|tarjeta|bancolombia|dónde|como|donde|hago)|cu.nta\b.*\b(bancaria|banco|pago)|datos\b.*\bpago|información\b.*\bpago)\b/i;
       if (paymentPattern.test(message)) {
         logger.info("[Agent] Pre-processor: payment request detected, forcing search_knowledge");
@@ -92,16 +92,15 @@ export const orchestrator = {
           const knowledgeOutput = await toolbelt.execute("search_knowledge", {
             query: message,
             category: "payments",
-            limit: 1,
           } as any);
 
           const knowledgeData = knowledgeOutput as SearchKnowledgeOutput;
           if (knowledgeData.data.length > 0) {
             const paymentInfo = knowledgeData.data[0];
-            // Usar DeepSeek SOLO para formular una respuesta conversacional
-            // con los datos oficiales de pago ya determinados
-            const toolSummary = `=== DATOS OFICIALES DE PAGO (INMUTABLES) ===\n${paymentInfo.content}\n=== FIN DATOS OFICIALES ===\n\nFormula una respuesta breve y amable usando EXACTAMENTE estos datos. NO modifiques números, enlaces ni nombres.`;
-            const response = await deepseekService.formulateResponse(context, toolSummary);
+            // Enviar los datos de pago DIRECTAMENTE desde Knowledge.
+            // DeepSeek solo agrega una frase de cortesía. Los datos son inmutables.
+            const greeting = "¡Claro! Aquí tienes la información de pago:\n\n";
+            const response = greeting + paymentInfo.content;
 
             const result: AgentTurnResult = {
               phase: "responding",
@@ -115,7 +114,7 @@ export const orchestrator = {
               timestamp: new Date().toISOString(),
             });
 
-            logger.info("[Agent] Pre-processor: payment response generated");
+            logger.info("[Agent] Pre-processor: payment data sent directly from Knowledge");
             return result;
           }
         } catch (err) {

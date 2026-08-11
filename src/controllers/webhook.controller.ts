@@ -138,17 +138,10 @@ const sendAgentResponse = (
       logger.warn(`[Webhook] sendText returned false for main message`);
     }
 
-    // 3. Enviar archivos: display_name → archivo → display_name → archivo
+    // 3. Enviar archivos: solo los audios/imágenes/videos en su orden original.
+    // La descripción del recurso ya contextualiza lo que el cliente recibirá.
     if (result.attachments && result.attachments.length > 0) {
       for (const att of result.attachments) {
-        // Enviar nombre visible antes del archivo
-        if (att.display_name) {
-          const nameSent = await whatsappService.sendText(phone, att.display_name);
-          if (!nameSent) {
-            logger.warn(`[Webhook] sendText returned false for display_name: "${att.display_name}"`);
-          }
-        }
-        // Enviar el archivo y verificar resultado
         const url = att.url;
         let fileSent = false;
         if (url.match(/\.(mp3|wav|ogg|m4a)($|\?)/i)) {
