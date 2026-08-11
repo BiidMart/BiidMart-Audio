@@ -232,11 +232,18 @@ const buildToolResultSummary = (
       // que DeepSeek mezcle información de diferentes conocimientos.
       const topResults = data.data.slice(0, 2);
       return topResults
-        .map(
-          (item, i) =>
-            `[${i + 1}] ${item.title} (categoría: ${item.category})\n${item.content}\nMetadata: ${JSON.stringify(item.metadata)}`
-        )
-        .join("\n\n");
+        .map((item, i) => {
+          // Estructura tipo "ficha técnica": separa datos factuales del contexto
+          const categoryLabel = item.category.toUpperCase();
+          return (
+            `=== CONOCIMIENTO ${i + 1}: ${item.title} (categoría: ${item.category}) ===\n\n` +
+            `[FUENTE OFICIAL — ${categoryLabel}]\n` +
+            `Los siguientes datos son la única fuente autorizada para información de ${item.category}:\n\n` +
+            `${item.content}\n\n` +
+            `[FIN DEL CONOCIMIENTO — NO INVENTES DATOS FUERA DE ESTA FUENTE]`
+          );
+        })
+        .join("\n\n---\n\n");
     }
 
     case "get_multimedia": {
