@@ -89,7 +89,9 @@ export const knowledgeService = {
         const queryEmbedding = await embeddingService.generateEmbedding(dto.query);
         const semanticResult = await knowledgeRepository.searchSemantic(
           queryEmbedding,
-          limit
+          limit,
+          0.5,
+          dto.category  // Respetar filtro de categoría en búsqueda semántica
         );
 
         if (semanticResult.data.length > 0) {

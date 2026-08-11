@@ -89,18 +89,14 @@ export const orchestrator = {
         logger.info("[Agent] Pre-processor: payment request detected, forcing search_knowledge");
         try {
           // Ejecutar search_knowledge directamente con categoría payments
-          const knowledgeOutput = await toolbelt.execute("search_knowledge", {
-            query: message,
-            category: "payments",
-          } as any);
-
-          const knowledgeData = knowledgeOutput as SearchKnowledgeOutput;
-          if (knowledgeData.data.length > 0) {
-            const paymentInfo = knowledgeData.data[0];
-            // Enviar los datos de pago DIRECTAMENTE desde Knowledge.
-            // DeepSeek solo agrega una frase de cortesía. Los datos son inmutables.
+          // Obtener TODOS los conocimientos de payments directamente por categoría
+          const { knowledgeService } = await import("../services/knowledge.service");
+          const payments = await knowledgeService.findByCategory("payments");
+          if (payments.length > 0) {
+            // Concatenar TODOS los conocimientos de pagos activos.
+            const allPaymentContent = payments.map(k => k.content).join("\n\n---\n\n");
             const greeting = "¡Claro! Aquí tienes la información de pago:\n\n";
-            const response = greeting + paymentInfo.content;
+            const response = greeting + allPaymentContent;
 
             const result: AgentTurnResult = {
               phase: "responding",
@@ -121,6 +117,41 @@ export const orchestrator = {
           const msg = err instanceof Error ? err.message : String(err);
           logger.warn(`[Agent] Pre-processor: payment search failed (${msg}), falling back to DeepSeek`);
           // Fallback: dejar que DeepSeek decida normalmente
+        }
+      }
+
+      // ---------- PRE-PROCESADOR DE INTENCIÓN DE PRECIO ----------
+      const pricingPattern = /\b(precio|cuánto cuesta|cuanto cuesta|cuánto vale|cuanto vale|costo|cuánto sale|cuanto sale|tarifa|valor del servicio)\b/i;
+      if (pricingPattern.test(message)) {
+        logger.info("[Agent] Pre-processor: pricing request detected");
+        try {
+          const { knowledgeService } = await import("../services/knowledge.service");
+          const prices = await knowledgeService.findByCategory("pricing");
+          if (prices.length > 0) {
+            const pricingSummary = prices.map((k, i) =>
+              `[${i + 1}] ${k.title}\n${k.content}`
+            ).join("\n\n");
+            const toolSummary = `=== PRECIOS OFICIALES ===\n${pricingSummary}\n=== FIN PRECIOS ===\n\nFormula una respuesta breve con estos precios exactos. NO inventes precios ni preguntes género.`;
+            const response = await deepseekService.formulateResponse(context, toolSummary);
+
+            const result: AgentTurnResult = {
+              phase: "responding",
+              toolUsed: "search_knowledge",
+              response,
+            };
+
+            conversationMemory.addMessage(sessionId, {
+              role: "agent",
+              content: response,
+              timestamp: new Date().toISOString(),
+            });
+
+            logger.info("[Agent] Pre-processor: pricing response generated");
+            return result;
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          logger.warn(`[Agent] Pre-processor: pricing search failed (${msg}), falling back to DeepSeek`);
         }
       }
 

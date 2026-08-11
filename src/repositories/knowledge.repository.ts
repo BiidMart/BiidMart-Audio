@@ -201,18 +201,28 @@ export const knowledgeRepository = {
   searchSemantic: async (
     queryEmbedding: number[],
     limit = 5,
-    threshold = 0.5
+    threshold = 0.5,
+    category?: string
   ): Promise<KnowledgeListResponse> => {
     const embeddingStr = JSON.stringify(queryEmbedding);
+    const values: unknown[] = [embeddingStr, threshold];
+    let categoryFilter = "";
+    if (category) {
+      categoryFilter = "AND category = $3";
+      values.push(category);
+    }
+    values.push(limit);
+    const limitIdx = values.length;
     const { rows: data } = await getPool().query(
       `SELECT *, embedding <=> $1::vector AS _distance
        FROM knowledge
        WHERE is_active = true
          AND embedding IS NOT NULL
+         ${categoryFilter}
          AND embedding <=> $1::vector < $2
        ORDER BY _distance ASC
-       LIMIT $3`,
-      [embeddingStr, threshold, limit]
+       LIMIT $${limitIdx}`,
+      values
     );
     return { data, total: data.length, limit, offset: 0 };
   },
