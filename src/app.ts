@@ -20,7 +20,21 @@ const app = express();
 // ---------- Global Middlewares ----------
 
 // Helmet: security headers
-app.use(helmet());
+// Por defecto la CSP de Helmet limita media-src y connect-src a 'self'.
+// Se agregan los orígenes de Supabase Storage para permitir reproducir y
+// descargar el audio del chat (sin debilitar el resto de directivas).
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+        "media-src": ["'self'", "https://*.supabase.co"],
+        "connect-src": ["'self'", "https://*.supabase.co"],
+        "img-src": ["'self'", "data:", "https://*.supabase.co"],
+      },
+    },
+  })
+);
 
 // CORS: cross-origin requests
 app.use(
