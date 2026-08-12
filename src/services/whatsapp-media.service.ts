@@ -20,7 +20,11 @@ export interface StoredMedia {
   mimeType: string;
 }
 
+const cleanMimeType = (mimeType: string): string =>
+  mimeType.toLowerCase().split(";")[0].trim();
+
 const toSafeExt = (mimeType: string): string => {
+  const clean = cleanMimeType(mimeType);
   const map: Record<string, string> = {
     "audio/ogg": "ogg",
     "audio/mpeg": "mp3",
@@ -28,16 +32,19 @@ const toSafeExt = (mimeType: string): string => {
     "audio/wav": "wav",
     "audio/aac": "aac",
     "audio/amr": "amr",
+    "audio/opus": "ogg",
+    "audio/webm": "webm",
+    "application/ogg": "ogg",
     "image/jpeg": "jpg",
     "image/png": "png",
     "image/webp": "webp",
     "video/mp4": "mp4",
     "application/pdf": "pdf",
   };
-  const ext = map[mimeType];
+  const ext = map[clean];
   if (ext) return ext;
 
-  const subtype = mimeType.split("/")[1];
+  const subtype = clean.split("/")[1];
   return subtype || "bin";
 };
 
@@ -74,7 +81,7 @@ export const whatsappMediaService = {
         return null;
       }
 
-      const resolvedMime = meta.mime_type || mimeType;
+      const resolvedMime = cleanMimeType(meta.mime_type || mimeType);
 
       // 2. Descargar el binario (con token, porque Meta lo exige)
       const fileResponse = await fetch(downloadUrl, {

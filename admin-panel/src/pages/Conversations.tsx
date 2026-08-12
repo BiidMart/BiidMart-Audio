@@ -87,9 +87,10 @@ export default function Conversations() {
     }
   }, []);
 
-  // Cargar mensajes de la conversación seleccionada
-  const loadMessages = useCallback(async (phone: string) => {
-    setLoadingMessages(true);
+  // Cargar mensajes de la conversación seleccionada.
+  // `silent` evita mostrar el indicador de carga en refrescos por polling.
+  const loadMessages = useCallback(async (phone: string, silent = false) => {
+    if (!silent) setLoadingMessages(true);
     try {
       const data = (await apiClient.conversations.getMessages(phone)) as {
         messages: ApiMessage[];
@@ -101,7 +102,7 @@ export default function Conversations() {
       );
       setMessages([]);
     } finally {
-      setLoadingMessages(false);
+      if (!silent) setLoadingMessages(false);
     }
   }, []);
 
@@ -123,7 +124,8 @@ export default function Conversations() {
     const interval = setInterval(() => {
       loadConversations();
       if (selectedRef.current.phone) {
-        loadMessages(selectedRef.current.phone);
+        // Refresco silencioso: no parpadea el área de mensajes.
+        loadMessages(selectedRef.current.phone, true);
       }
     }, POLL_INTERVAL_MS);
 

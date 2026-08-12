@@ -19,11 +19,22 @@ const IMAGE_EXT = /\.(jpg|jpeg|png|webp)($|\?)/i;
 const VIDEO_EXT = /\.(mp4|mov)($|\?)/i;
 const AUDIO_EXT = /\.(mp3|wav|ogg|m4a|opus|aac)($|\?)/i;
 
+const normalizeMimeToCategory = (mimeType: string): string | null => {
+  const clean = mimeType.toLowerCase().split(";")[0].trim();
+  if (clean.startsWith("audio/") || AUDIO_EXT.test(clean)) return "audio";
+  if (clean.startsWith("image/") || IMAGE_EXT.test(clean)) return "image";
+  if (clean.startsWith("video/") || VIDEO_EXT.test(clean)) return "video";
+  if (clean.startsWith("text/")) return "file";
+  if (clean === "application/pdf") return "file";
+  return "file";
+};
+
 const inferMediaType = (
   mediaType: string | null | undefined,
   urlOrPath: string | null | undefined
 ): string | null => {
-  if (mediaType) return mediaType;
+  // Si viene un MIME (ej: "audio/ogg"), normalizarlo a categoría ("audio").
+  if (mediaType) return normalizeMimeToCategory(mediaType);
   if (!urlOrPath) return null;
 
   const haystack = urlOrPath.toLowerCase();
