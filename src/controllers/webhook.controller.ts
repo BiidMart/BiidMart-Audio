@@ -9,6 +9,9 @@ import { whatsappService } from "../services/whatsapp.service";
 import { orchestrator } from "../agent/orchestrator";
 import { clientService } from "../services/client.service";
 import { logger } from "../utils/logger";
+import { ParsedIncomingMessage } from "../types/whatsapp.types";
+import { conversationService } from "../services/conversation.service";
+import { whatsappMediaService } from "../services/whatsapp-media.service";
 
 export const verifyWebhook = (req: Request, res: Response): void => {
   const mode = (req.query["hub.mode"] as string) || "";
@@ -59,6 +62,11 @@ export const receiveMessage = async (
       logger.error(`[Webhook] Failed to persist client: ${err.message}`)
     );
 
+    // Persistir mensaje entrante en BD + media (fire-and-forget, no bloquea Meta)
+    persistIncomingMessage(parsed).catch((err) =>
+      logger.error(`[Webhook] Failed to persist message: ${err.message}`)
+    );
+
     // Procesar con el Agente IA (asíncrono - no bloqueamos la respuesta a Meta)
     orchestrator
       .processMessage(parsed.phone, parsed.phone, parsed.message)
@@ -69,6 +77,11 @@ export const receiveMessage = async (
 
         // Enviar respuesta vía WhatsApp según el resultado
         sendAgentResponse(parsed.phone, result);
+
+        // Persistir la respuesta del agente en BD (fire-and-forget)
+        persistAgentResponse(parsed.phone, result).catch((err) =>
+          logger.error(`[Webhook] Failed to persist agent response: ${err.message}`)
+        );
       })
       .catch((err) => {
         logger.error(
@@ -165,4 +178,76 @@ const sendAgentResponse = (
   sendAll().catch((err) =>
     logger.error(`[Webhook] sendAll failed: ${err instanceof Error ? err.message : String(err)}`)
   );
+};
+
+// =============================================
+// Helper: Persiste el mensaje entrante en BD.
+// Descarga y almacena el media si aplica.
+// =============================================
+const persistIncomingMessage = async (
+  parsed: ParsedIncomingMessage
+): Promise<void> => {
+  let mediaUrl: string | null = null;
+  let mediaPath: string | null = null;
+  let mediaType: string | null = parsed.mimeType || null;
+  let mediaExpiresAt: string | null = null;
+
+  // Si es un mensaje multimedia, descargarlo de Graph API y guardarlo en Supabase
+  if (parsed.mediaId && parsed.mimeType) {
+    const stored = await whatsappMediaService.downloadAndStore(
+      parsed.mediaId,
+      parsed.mimeType
+    );
+    if (stored) {
+      mediaUrl = stored.url;
+      mediaPath = stored.path;
+      mediaType = stored.mimeType;
+      // Política de expiración: 24 horas a partir de ahora
+      mediaExpiresAt = new Date(
+        Date.now() + 24 * 60 * 60 * 1000
+      ).toISOString();
+    }
+  }
+
+  // Persistir el mensaje (texto o media) de forma permanente
+  await conversationService.upsertMessage({
+    phone: parsed.phone,
+    role: "client",
+    content: parsed.message,
+    mediaType,
+    mediaUrl,
+    mediaPath,
+    mediaExpiresAt,
+  });
+
+  // Vincular conversación con el cliente registrado en BD (si existe)
+  const client = await clientService.findByPhone(parsed.phone);
+  if (client) {
+    await conversationService.linkClientIfMissing(parsed.phone, client.id);
+  }
+};
+
+// =============================================
+// Helper: Persiste la respuesta del agente en BD.
+// =============================================
+// No se toca el orchestrator: solo se registra lo que
+// ya devolvió, de forma asíncrona y tolerante a fallos.
+const persistAgentResponse = async (
+  phone: string,
+  result: { response: string; description?: string | null }
+): Promise<void> => {
+  await conversationService.upsertMessage({
+    phone,
+    role: "agent",
+    content: result.response,
+  });
+
+  // La descripción se envió como un mensaje separado de WhatsApp.
+  if (result.description) {
+    await conversationService.upsertMessage({
+      phone,
+      role: "agent",
+      content: result.description,
+    });
+  }
 };

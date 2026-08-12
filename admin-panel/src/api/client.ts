@@ -152,5 +152,11 @@ export const apiClient = {
         headers: getHeaders(),
         body: JSON.stringify({ message }),
       }).then(handleResponse),
+
+    remove: (id: string) =>
+      fetch(`${BASE_URL}/admin/conversations/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers: getHeaders(),
+      }).then(handleResponse),
   },
 };

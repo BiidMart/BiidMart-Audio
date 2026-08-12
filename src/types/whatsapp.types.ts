@@ -59,6 +59,10 @@ export interface ParsedIncomingMessage {
   message: string;
   messageId: string;
   type: string;
+  /** ID del archivo multimedia (audio/image/video/document) si aplica. */
+  mediaId?: string | null;
+  /** MIME type del archivo multimedia si aplica. */
+  mimeType?: string | null;
 }
 
 // Tipos de mensaje saliente

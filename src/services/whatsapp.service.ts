@@ -209,6 +209,15 @@ export const whatsappService = {
 
       // Extraer texto del mensaje
       let messageText = "";
+      const mediaId =
+        msg.audio?.id || msg.image?.id || msg.video?.id || msg.document?.id || null;
+      const mimeType =
+        msg.audio?.mime_type ||
+        msg.image?.mime_type ||
+        msg.video?.mime_type ||
+        msg.document?.mime_type ||
+        null;
+
       switch (msg.type) {
         case "text":
           messageText = msg.text?.body || "";
@@ -234,6 +243,8 @@ export const whatsappService = {
         message: messageText,
         messageId: msg.id,
         type: msg.type,
+        mediaId,
+        mimeType,
       };
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);

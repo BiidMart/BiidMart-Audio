@@ -1,86 +1,55 @@
 // =============================================
 // Controlador del Admin — Chat de Conversaciones
 // =============================================
-// Expone las conversaciones activas de la memoria
-// y permite responder manualmente vía WhatsApp.
-//
-// NO reimplementa lógica del agente: solo lee la memoria
-// y usa whatsappService.sendText() directamente.
+// Lee y escribe en PostgreSQL (fuente de verdad).
+// La memoria RAM del agente queda intacta; solo se
+// refleja también ahí para mantener la vista del agente.
 
 import { Request, Response, NextFunction } from "express";
 import { conversationMemory } from "../agent/memory/conversation-memory";
 import { whatsappService } from "../services/whatsapp.service";
-import { clientService } from "../services/client.service";
+import { conversationService } from "../services/conversation.service";
 import { logger } from "../utils/logger";
 
 // GET /api/admin/conversations
-// Devuelve las sesiones activas con el último mensaje y el nombre
-// del cliente (si existe en BD, si no, usa el teléfono).
+// Lista conversaciones persistentes desde PostgreSQL.
 export const listConversations = async (
   _req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const sessions = conversationMemory.getAll();
-
-    // Enriquecer con nombre del cliente persistido en BD
-    const enriched = await Promise.all(
-      sessions.map(async (session) => {
-        let name: string | null = null;
-        try {
-          const client = await clientService.findByPhone(session.clientPhone);
-          name = client?.name || null;
-        } catch (err) {
-          logger.warn(
-            `[Admin] Failed to fetch client name for ${session.clientPhone}: ${
-              err instanceof Error ? err.message : String(err)
-            }`
-          );
-        }
-
-        return {
-          phone: session.sessionId,
-          name: name || session.clientPhone,
-          lastMessage: session.lastMessage,
-          lastActivity: session.lastActivity,
-        };
-      })
-    );
-
-    res.json({ conversations: enriched });
+    const conversations = await conversationService.listConversations();
+    res.json({ conversations });
   } catch (error) {
     next(error);
   }
 };
 
 // GET /api/admin/conversations/:phone/messages
-// Devuelve los mensajes de una sesión activa.
-export const getMessages = (
+// Devuelve los mensajes persistentes de una conversación.
+export const getMessages = async (
   req: Request,
   res: Response,
   next: NextFunction
-): void => {
+): Promise<void> => {
   try {
     const phone = req.params.phone as string;
-    const context = conversationMemory.get(phone);
+    const messages = await conversationService.getMessages(phone);
 
-    if (!context) {
+    if (messages === null) {
       res.status(404).json({ message: "Conversation not found" });
       return;
     }
 
-    res.json({
-      phone: context.sessionId,
-      messages: context.messages,
-    });
+    res.json({ phone, messages });
   } catch (error) {
     next(error);
   }
 };
 
 // POST /api/admin/conversations/:phone/reply
-// Envía una respuesta manual vía WhatsApp y la registra en memoria.
+// Envía una respuesta manual vía WhatsApp y la persiste.
 export const sendReply = async (
   req: Request,
   res: Response,
@@ -97,8 +66,10 @@ export const sendReply = async (
       return;
     }
 
-    // Enviar el mensaje al cliente vía WhatsApp
-    const sent = await whatsappService.sendText(phone, message.trim());
+    const cleanMessage = message.trim();
+
+    // 1. Enviar el mensaje al cliente vía WhatsApp
+    const sent = await whatsappService.sendText(phone, cleanMessage);
 
     if (!sent) {
       res.status(502).json({
@@ -107,13 +78,21 @@ export const sendReply = async (
       return;
     }
 
-    // Registrar la respuesta del admin en la conversación
-    // (getOrCreate garantiza que exista una entrada; no altera el agente)
+    const now = new Date().toISOString();
+
+    // 2. Persistir en PostgreSQL (fuente de verdad)
+    await conversationService.upsertMessage({
+      phone,
+      role: "admin",
+      content: cleanMessage,
+    });
+
+    // 3. Reflejar también en memoria RAM para consistencia con la vista del agente
     const context = conversationMemory.getOrCreate(phone, phone);
     conversationMemory.addMessage(context.sessionId, {
       role: "admin",
-      content: message.trim(),
-      timestamp: new Date().toISOString(),
+      content: cleanMessage,
+      timestamp: now,
     });
 
     logger.info(`[Admin] Manual reply sent to ${phone}`);
@@ -122,11 +101,33 @@ export const sendReply = async (
       success: true,
       phone,
       message: {
-        role: "admin",
-        content: message.trim(),
-        timestamp: new Date().toISOString(),
+        role: "admin" as const,
+        content: cleanMessage,
+        timestamp: now,
       },
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// DELETE /api/admin/conversations/:id
+// Elimina la conversación de forma definitiva: BD + archivos físicos.
+export const deleteConversation = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const id = req.params.id as string;
+    const deleted = await conversationService.deleteConversation(id);
+
+    if (!deleted) {
+      res.status(404).json({ message: "Conversation not found" });
+      return;
+    }
+
+    res.json({ success: true, id });
   } catch (error) {
     next(error);
   }

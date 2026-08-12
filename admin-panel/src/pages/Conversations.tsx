@@ -1,29 +1,39 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { apiClient } from "../api/client";
 
 // =============================================
-// Módulo de Conversaciones — conectado a la API real
+// Módulo de Conversaciones — conectado a BD (persistente)
 // =============================================
 
 interface Message {
   id: string;
   role: "client" | "agent" | "admin";
   content: string;
-  timestamp: string;
+  mediaType: string | null;
+  mediaUrl: string | null;
+  mediaExpired: boolean;
+  createdAt: string;
 }
 
 interface Conversation {
+  id: string;
   phone: string;
-  name: string;
+  name: string | null;
   lastMessage: string | null;
-  lastActivity: number;
+  lastMessageAt: string;
 }
 
 interface ApiMessage {
+  id: string;
   role: "client" | "agent" | "admin";
   content: string;
-  timestamp: string;
+  mediaType: string | null;
+  mediaUrl: string | null;
+  mediaExpired: boolean;
+  createdAt: string;
 }
+
+const POLL_INTERVAL_MS = 4000;
 
 const formatTime = (timestamp: string): string => {
   try {
@@ -37,8 +47,18 @@ const formatTime = (timestamp: string): string => {
   }
 };
 
+const formatDate = (timestamp: string): string => {
+  try {
+    const date = new Date(timestamp);
+    return date.toLocaleDateString("es-CO");
+  } catch {
+    return "";
+  }
+};
+
 export default function Conversations() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [replyText, setReplyText] = useState("");
@@ -48,9 +68,10 @@ export default function Conversations() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const selectedRef = useRef<{ phone: string | null }>({ phone: null });
+
   // Cargar lista de conversaciones
   const loadConversations = useCallback(async () => {
-    setLoadingList(true);
     setError(null);
     try {
       const data = (await apiClient.conversations.list()) as {
@@ -69,19 +90,11 @@ export default function Conversations() {
   // Cargar mensajes de la conversación seleccionada
   const loadMessages = useCallback(async (phone: string) => {
     setLoadingMessages(true);
-    setError(null);
     try {
       const data = (await apiClient.conversations.getMessages(phone)) as {
         messages: ApiMessage[];
       };
-      setMessages(
-        (data.messages || []).map((msg, index) => ({
-          id: `${phone}-${index}-${msg.timestamp}`,
-          role: msg.role,
-          content: msg.content,
-          timestamp: msg.timestamp,
-        }))
-      );
+      setMessages(data.messages || []);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Error al cargar los mensajes"
@@ -96,6 +109,7 @@ export default function Conversations() {
     loadConversations();
   }, [loadConversations]);
 
+  // Al seleccionar una conversación, cargar sus mensajes
   useEffect(() => {
     if (selectedPhone) {
       loadMessages(selectedPhone);
@@ -104,8 +118,22 @@ export default function Conversations() {
     }
   }, [selectedPhone, loadMessages]);
 
-  const handleSelect = (phone: string) => {
-    setSelectedPhone(phone);
+  // Polling: refresca la lista y los mensajes de la conversación activa.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadConversations();
+      if (selectedRef.current.phone) {
+        loadMessages(selectedRef.current.phone);
+      }
+    }, POLL_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [loadConversations, loadMessages]);
+
+  const handleSelect = (conv: Conversation) => {
+    setSelectedId(conv.id);
+    setSelectedPhone(conv.phone);
+    selectedRef.current.phone = conv.phone;
   };
 
   const handleSend = async () => {
@@ -117,22 +145,23 @@ export default function Conversations() {
       const result = (await apiClient.conversations.reply(
         selectedPhone,
         replyText.trim()
-      )) as { message: ApiMessage };
+      )) as { message: { role: string; content: string; timestamp: string } };
 
-      // Agregar el mensaje del admin a la vista local
       const sentMessage = result.message;
       setMessages((prev) => [
         ...prev,
         {
-          id: `${selectedPhone}-${Date.now()}`,
-          role: sentMessage.role,
+          id: `local-${Date.now()}`,
+          role: sentMessage.role as Message["role"],
           content: sentMessage.content,
-          timestamp: sentMessage.timestamp,
+          mediaType: null,
+          mediaUrl: null,
+          mediaExpired: false,
+          createdAt: sentMessage.timestamp,
         },
       ]);
 
       setReplyText("");
-      // Refrescar la lista para actualizar el último mensaje
       loadConversations();
     } catch (err) {
       setError(
@@ -143,9 +172,29 @@ export default function Conversations() {
     }
   };
 
-  const selectedConv = conversations.find(
-    (c) => c.phone === selectedPhone
-  );
+  const handleDelete = async () => {
+    if (!selectedId) return;
+    const confirmed = window.confirm(
+      "¿Eliminar esta conversación? Se borrarán todos los mensajes y archivos asociados de forma definitiva."
+    );
+    if (!confirmed) return;
+
+    setError(null);
+    try {
+      await apiClient.conversations.remove(selectedId);
+      setSelectedId(null);
+      setSelectedPhone(null);
+      selectedRef.current.phone = null;
+      setMessages([]);
+      loadConversations();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Error al eliminar la conversación"
+      );
+    }
+  };
+
+  const selectedConv = conversations.find((c) => c.id === selectedId);
 
   return (
     <div className="flex h-full">
@@ -165,22 +214,20 @@ export default function Conversations() {
           ) : (
             conversations.map((conv) => (
               <div
-                key={conv.phone}
-                onClick={() => handleSelect(conv.phone)}
+                key={conv.id}
+                onClick={() => handleSelect(conv)}
                 className={`p-4 border-b border-gray-100 cursor-pointer transition-colors hover:bg-gray-50 ${
-                  selectedPhone === conv.phone
+                  selectedId === conv.id
                     ? "bg-indigo-50 border-l-4 border-l-indigo-500"
                     : ""
                 }`}
               >
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-semibold text-sm truncate">
-                    {conv.name}
+                    {conv.name || conv.phone}
                   </span>
                   <span className="text-xs text-gray-400 shrink-0">
-                    {conv.lastActivity
-                      ? new Date(conv.lastActivity).toLocaleDateString("es-CO")
-                      : ""}
+                    {formatDate(conv.lastMessageAt)}
                   </span>
                 </div>
                 <span className="text-xs text-gray-500 truncate block">
@@ -205,12 +252,20 @@ export default function Conversations() {
             {/* Header del chat */}
             <div className="p-4 bg-white border-b border-gray-200 flex items-center gap-3">
               <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm">
-                {selectedConv.name?.charAt(0) || "?"}
+                {(selectedConv.name || selectedConv.phone)?.charAt(0) || "?"}
               </div>
-              <div>
-                <h3 className="font-semibold text-sm">{selectedConv.name}</h3>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-sm truncate">
+                  {selectedConv.name || selectedConv.phone}
+                </h3>
                 <p className="text-xs text-gray-400">{selectedConv.phone}</p>
               </div>
+              <button
+                onClick={handleDelete}
+                className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+              >
+                Eliminar
+              </button>
             </div>
 
             {/* Mensajes */}
@@ -240,7 +295,53 @@ export default function Conversations() {
                             : "bg-indigo-100 text-indigo-900 rounded-br-sm"
                       }`}
                     >
-                      <p>{msg.content}</p>
+                      {msg.content && <p>{msg.content}</p>}
+
+                      {msg.mediaType === "audio" && (
+                        <div className="mt-1">
+                          {msg.mediaExpired || !msg.mediaUrl ? (
+                            <p className="text-xs italic opacity-70">
+                              🔊 Audio expirado
+                            </p>
+                          ) : (
+                            <audio controls src={msg.mediaUrl} className="w-full max-w-sm" />
+                          )}
+                        </div>
+                      )}
+
+                      {msg.mediaType === "image" && msg.mediaUrl && (
+                        <a
+                          href={msg.mediaUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs underline block mt-1"
+                        >
+                          🖼 Ver imagen
+                        </a>
+                      )}
+
+                      {msg.mediaType === "video" && msg.mediaUrl && (
+                        <a
+                          href={msg.mediaUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs underline block mt-1"
+                        >
+                          🎬 Ver video
+                        </a>
+                      )}
+
+                      {msg.mediaType === "file" && msg.mediaUrl && (
+                        <a
+                          href={msg.mediaUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs underline block mt-1"
+                        >
+                          📎 Ver archivo
+                        </a>
+                      )}
+
                       <p className="text-xs text-gray-400 mt-1 text-right">
                         {msg.role === "client"
                           ? "Cliente"
@@ -248,7 +349,7 @@ export default function Conversations() {
                             ? "Tú (admin)"
                             : "Mateo"}
                         {" · "}
-                        {formatTime(msg.timestamp)}
+                        {formatTime(msg.createdAt)}
                       </p>
                     </div>
                   </div>
