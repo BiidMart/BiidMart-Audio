@@ -80,6 +80,7 @@ export const conversationRepository = {
          c.phone,
          cl.name AS name,
          c.last_message_at AS "lastMessageAt",
+         c.taken_by_admin AS "takenByAdmin",
          (
            SELECT cm.content
            FROM conversation_messages cm
@@ -151,5 +152,25 @@ export const conversationRepository = {
       "UPDATE conversations SET client_id = $2, updated_at = NOW() WHERE phone = $1 AND client_id IS NULL",
       [phone, clientId]
     );
+  },
+
+  // Indica si la conversación (por teléfono) está tomada por un administrador.
+  // Devuelve false si no existe la conversación, para no bloquear al agente.
+  isTakenByPhone: async (phone: string): Promise<boolean> => {
+    const { rows } = await getPool().query(
+      "SELECT taken_by_admin FROM conversations WHERE phone = $1",
+      [phone]
+    );
+    if (rows.length === 0) return false;
+    return Boolean(rows[0].taken_by_admin);
+  },
+
+  // Activa/desactiva el estado "tomado por admin" de una conversación.
+  setTakenById: async (id: string, taken: boolean): Promise<boolean> => {
+    const { rowCount } = await getPool().query(
+      "UPDATE conversations SET taken_by_admin = $2, updated_at = NOW() WHERE id = $1",
+      [id, taken]
+    );
+    return (rowCount ?? 0) > 0;
   },
 };

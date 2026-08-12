@@ -67,27 +67,38 @@ export const receiveMessage = async (
       logger.error(`[Webhook] Failed to persist message: ${err.message}`)
     );
 
-    // Procesar con el Agente IA (asíncrono - no bloqueamos la respuesta a Meta)
-    orchestrator
-      .processMessage(parsed.phone, parsed.phone, parsed.message)
-      .then((result) => {
-        logger.info(
-          `[Webhook] Agent response for ${parsed.phone}: ${result.toolUsed || "none"}`
-        );
+    // Si el administrador tiene tomada esta conversación, NO invocar al agente.
+    // El mensaje entrante ya se persistió y aparecerá en el Chat del Admin.
+    // `isTakenByPhone` devuelve false ante cualquier fallo, para no bloquear al agente.
+    const isTaken = await conversationService.isTakenByPhone(parsed.phone);
 
-        // Enviar respuesta vía WhatsApp según el resultado
-        sendAgentResponse(parsed.phone, result);
+    if (!isTaken) {
+      // Procesar con el Agente IA (asíncrono - no bloqueamos la respuesta a Meta)
+      orchestrator
+        .processMessage(parsed.phone, parsed.phone, parsed.message)
+        .then((result) => {
+          logger.info(
+            `[Webhook] Agent response for ${parsed.phone}: ${result.toolUsed || "none"}`
+          );
 
-        // Persistir la respuesta del agente en BD (fire-and-forget)
-        persistAgentResponse(parsed.phone, result).catch((err) =>
-          logger.error(`[Webhook] Failed to persist agent response: ${err.message}`)
-        );
-      })
-      .catch((err) => {
-        logger.error(
-          `[Webhook] Agent error for ${parsed.phone}: ${err.message}`
-        );
-      });
+          // Enviar respuesta vía WhatsApp según el resultado
+          sendAgentResponse(parsed.phone, result);
+
+          // Persistir la respuesta del agente en BD (fire-and-forget)
+          persistAgentResponse(parsed.phone, result).catch((err) =>
+            logger.error(`[Webhook] Failed to persist agent response: ${err.message}`)
+          );
+        })
+        .catch((err) => {
+          logger.error(
+            `[Webhook] Agent error for ${parsed.phone}: ${err.message}`
+          );
+        });
+    } else {
+      logger.info(
+        `[Webhook] Conversation ${parsed.phone} taken by admin — agent skipped`
+      );
+    }
 
     // Responder 200 OK a Meta inmediatamente (Meta espera respuesta < 20s)
     res.status(200).send("ok");

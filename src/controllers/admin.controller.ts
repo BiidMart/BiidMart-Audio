@@ -111,6 +111,37 @@ export const sendReply = async (
   }
 };
 
+// PATCH /api/admin/conversations/:id/taken
+// Activa/desactiva el control manual del admin sobre una conversación.
+export const setTaken = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const id = req.params.id as string;
+    const taken = req.body?.taken;
+
+    if (typeof taken !== "boolean") {
+      res.status(400).json({
+        error: { message: "taken must be a boolean" },
+      });
+      return;
+    }
+
+    const updated = await conversationService.setTaken(id, taken);
+
+    if (!updated) {
+      res.status(404).json({ message: "Conversation not found" });
+      return;
+    }
+
+    res.json({ success: true, id, taken });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // DELETE /api/admin/conversations/:id
 // Elimina la conversación de forma definitiva: BD + archivos físicos.
 export const deleteConversation = async (

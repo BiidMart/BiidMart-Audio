@@ -21,6 +21,7 @@ interface Conversation {
   name: string | null;
   lastMessage: string | null;
   lastMessageAt: string;
+  takenByAdmin: boolean;
 }
 
 interface ApiMessage {
@@ -66,6 +67,7 @@ export default function Conversations() {
   const [loadingList, setLoadingList] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
+  const [takenUpdating, setTakenUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const selectedRef = useRef<{ phone: string | null }>({ phone: null });
@@ -196,6 +198,25 @@ export default function Conversations() {
     }
   };
 
+  const handleToggleTaken = async () => {
+    if (!selectedId) return;
+    const current = conversations.find((c) => c.id === selectedId);
+    if (!current) return;
+
+    setTakenUpdating(true);
+    setError(null);
+    try {
+      await apiClient.conversations.setTaken(selectedId, !current.takenByAdmin);
+      loadConversations();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Error al cambiar el estado del chat"
+      );
+    } finally {
+      setTakenUpdating(false);
+    }
+  };
+
   const handleDownload = async (url: string, filename: string) => {
     try {
       const res = await fetch(url);
@@ -281,6 +302,16 @@ export default function Conversations() {
                 </h3>
                 <p className="text-xs text-gray-400">{selectedConv.phone}</p>
               </div>
+              <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={selectedConv.takenByAdmin}
+                  disabled={takenUpdating}
+                  onChange={handleToggleTaken}
+                  className="h-4 w-4 accent-indigo-600"
+                />
+                Tomar chat
+              </label>
               <button
                 onClick={handleDelete}
                 className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"

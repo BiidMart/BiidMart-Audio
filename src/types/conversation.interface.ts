@@ -9,6 +9,7 @@ export interface Conversation {
   created_at: string;
   updated_at: string;
   last_message_at: string;
+  taken_by_admin: boolean;
 }
 
 export type MessageRole = "client" | "agent" | "admin";
@@ -31,6 +32,7 @@ export interface ConversationListItem {
   name: string | null;
   lastMessage: string | null;
   lastMessageAt: string;
+  takenByAdmin: boolean;
 }
 
 export interface ConversationMessageDto {

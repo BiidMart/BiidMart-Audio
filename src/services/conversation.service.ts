@@ -125,4 +125,30 @@ export const conversationService = {
   linkClientIfMissing: async (phone: string, clientId: string): Promise<void> => {
     await conversationRepository.linkClient(phone, clientId);
   },
+
+  // ─── Control manual del admin ("Tomar chat") ───
+
+  /**
+   * Indica si la conversación está tomada por un administrador.
+   * Si falla la consulta, devuelve false para no bloquear al agente.
+   */
+  isTakenByPhone: async (phone: string): Promise<boolean> => {
+    try {
+      return await conversationRepository.isTakenByPhone(phone);
+    } catch (err) {
+      logger.warn(
+        `[Conversation] isTakenByPhone failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+      return false;
+    }
+  },
+
+  /**
+   * Activa/desactiva el estado "tomado por admin".
+   */
+  setTaken: async (id: string, taken: boolean): Promise<boolean> => {
+    return conversationRepository.setTakenById(id, taken);
+  },
 };

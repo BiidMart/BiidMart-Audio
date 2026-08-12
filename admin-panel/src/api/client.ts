@@ -153,6 +153,13 @@ export const apiClient = {
         body: JSON.stringify({ message }),
       }).then(handleResponse),
 
+    setTaken: (id: string, taken: boolean) =>
+      fetch(`${BASE_URL}/admin/conversations/${encodeURIComponent(id)}/taken`, {
+        method: "PATCH",
+        headers: getHeaders(),
+        body: JSON.stringify({ taken }),
+      }).then(handleResponse),
+
     remove: (id: string) =>
       fetch(`${BASE_URL}/admin/conversations/${encodeURIComponent(id)}`, {
         method: "DELETE",
