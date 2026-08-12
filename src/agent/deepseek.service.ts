@@ -100,8 +100,14 @@ const buildMessages = (context: ConversationContext): DeepSeekMessage[] => {
   }
   // --------------------------------------------------------
 
-  // Solo enviamos los últimos 15 mensajes para no exceder el contexto
-  const recentMessages = context.messages.slice(-15);
+  // Solo enviamos los últimos 15 mensajes para no exceder el contexto.
+  // Se excluyen los mensajes del admin enviados manualmente desde el panel:
+  // el agente automático NO debe considerarlos como parte de la conversación
+  // que "Mateo" ya respondió (evita que la IA asuma que las respuestas manuales
+  // son suyas). Con cero mensajes admin, este filtro es un no-op.
+  const recentMessages = context.messages
+    .filter((msg) => msg.role !== "admin")
+    .slice(-15);
 
   for (const msg of recentMessages) {
     messages.push({

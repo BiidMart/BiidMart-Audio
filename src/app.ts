@@ -13,6 +13,7 @@ import webhookRoutes from "./routes/webhook.routes";
 import clientRoutes from "./routes/client.routes";
 import paymentRoutes from "./routes/payment.routes";
 import resourceRoutes from "./routes/resource.routes";
+import adminRoutes from "./routes/admin.routes";
 
 const app = express();
 
@@ -64,6 +65,7 @@ app.use("/api/webhook", webhookRoutes);
 app.use("/api/clients", clientRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/resources", resourceRoutes);
+app.use("/api/admin", adminRoutes);
 
 // ---------- Error Handling ----------
 

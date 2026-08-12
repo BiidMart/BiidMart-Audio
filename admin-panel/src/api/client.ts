@@ -133,4 +133,24 @@ export const apiClient = {
         headers: getHeaders(),
       }).then(handleResponse),
   },
+
+  // ─── Conversations (Admin Chat) ───
+  conversations: {
+    list: () =>
+      fetch(`${BASE_URL}/admin/conversations`, {
+        headers: getHeaders(),
+      }).then(handleResponse),
+
+    getMessages: (phone: string) =>
+      fetch(`${BASE_URL}/admin/conversations/${encodeURIComponent(phone)}/messages`, {
+        headers: getHeaders(),
+      }).then(handleResponse),
+
+    reply: (phone: string, message: string) =>
+      fetch(`${BASE_URL}/admin/conversations/${encodeURIComponent(phone)}/reply`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify({ message }),
+      }).then(handleResponse),
+  },
 };

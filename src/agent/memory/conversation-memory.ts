@@ -101,4 +101,46 @@ export const conversationMemory = {
   delete: (sessionId: string): void => {
     store.delete(sessionId);
   },
+
+  /**
+   * Lista todas las sesiones activas con un resumen de su último mensaje.
+   * No expone el Map interno; solo devuelve datos seguros para el Admin Panel.
+   */
+  getAll: (): Array<{
+    sessionId: string;
+    clientPhone: string;
+    lastMessage: string | null;
+    lastActivity: number;
+  }> => {
+    const now = Date.now();
+    const sessions: Array<{
+      sessionId: string;
+      clientPhone: string;
+      lastMessage: string | null;
+      lastActivity: number;
+    }> = [];
+
+    for (const [sessionId, entry] of store.entries()) {
+      // Omitir entradas expiradas (la limpieza corre cada hora, pero por si acaso)
+      if (now - entry.lastActivity > TTL_MS) {
+        store.delete(sessionId);
+        continue;
+      }
+
+      const { context } = entry;
+      const lastMsg = context.messages[context.messages.length - 1];
+
+      sessions.push({
+        sessionId,
+        clientPhone: context.clientPhone,
+        lastMessage: lastMsg ? lastMsg.content : null,
+        lastActivity: entry.lastActivity,
+      });
+    }
+
+    // Ordenar por actividad más reciente primero
+    sessions.sort((a, b) => b.lastActivity - a.lastActivity);
+
+    return sessions;
+  },
 };

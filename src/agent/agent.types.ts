@@ -15,9 +15,9 @@ export type AgentPhase =
   | "handoff"       // Derivando al humano
   | "error";        // Error en el ciclo
 
-// Mensaje del cliente o del agente
+// Mensaje del cliente, del agente o del administrador
 export interface Message {
-  role: "client" | "agent";
+  role: "client" | "agent" | "admin";
   content: string;
   timestamp: string;
 }
