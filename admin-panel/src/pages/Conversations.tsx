@@ -196,6 +196,25 @@ export default function Conversations() {
     }
   };
 
+  const handleDownload = async (url: string, filename: string) => {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Error al descargar el archivo"
+      );
+    }
+  };
+
   const selectedConv = conversations.find((c) => c.id === selectedId);
 
   return (
@@ -306,7 +325,15 @@ export default function Conversations() {
                               🔊 Audio expirado
                             </p>
                           ) : (
-                            <audio controls src={msg.mediaUrl} className="w-full max-w-sm" />
+                            <div className="flex flex-col gap-1">
+                              <audio controls src={msg.mediaUrl} className="w-full max-w-sm" />
+                              <button
+                                onClick={() => handleDownload(msg.mediaUrl as string, "audio.wav")}
+                                className="text-xs underline text-indigo-600 text-left"
+                              >
+                                ⬇ Descargar audio
+                              </button>
+                            </div>
                           )}
                         </div>
                       )}

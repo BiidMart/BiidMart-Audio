@@ -20,8 +20,89 @@ export interface StoredMedia {
   mimeType: string;
 }
 
+// Decodificador Ogg Opus (WASM empaquetado en el tarball npm, sin binarios
+// externos ni postinstall). Se importa dinámicamente porque es ESM-only.
+const importDecoder = (): Promise<{
+  OggOpusDecoder: new () => {
+    ready: Promise<void>;
+    decodeFile: (data: Uint8Array) => Promise<{
+      channelData: Float32Array[];
+      samplesDecoded: number;
+      sampleRate: number;
+    }>;
+    free: () => void;
+  };
+}> => import("ogg-opus-decoder");
+
 const cleanMimeType = (mimeType: string): string =>
   mimeType.toLowerCase().split(";")[0].trim();
+
+/**
+ * Transcodifica audio Ogg Opus a WAV PCM (mono/estéreo, 48kHz).
+ * Devuelve el buffer WAV o null si no es Ogg Opus o falla la decodificación.
+ */
+const transcodeOpusToWav = async (
+  input: Buffer,
+  mimeType: string
+): Promise<{ buffer: Buffer; contentType: string; extension: string } | null> => {
+  const clean = cleanMimeType(mimeType);
+  const isOpusContainer = clean === "audio/ogg" || clean === "audio/opus";
+
+  if (!isOpusContainer) return null;
+
+  try {
+    const { OggOpusDecoder } = await importDecoder();
+    const decoder = new OggOpusDecoder();
+    await decoder.ready;
+    const decoded = await decoder.decodeFile(new Uint8Array(input));
+
+    const numChannels = decoded.channelData.length;
+    const sampleRate = decoded.sampleRate;
+    const samples = decoded.samplesDecoded;
+    const bytesPerSample = 2;
+    const dataSize = samples * numChannels * bytesPerSample;
+    const wav = Buffer.alloc(44 + dataSize);
+
+    wav.write("RIFF", 0, "ascii");
+    wav.writeUInt32LE(36 + dataSize, 4);
+    wav.write("WAVE", 8, "ascii");
+    wav.write("fmt ", 12, "ascii");
+    wav.writeUInt32LE(16, 16); // tamaño del chunk fmt
+    wav.writeUInt16LE(1, 20); // PCM lineal
+    wav.writeUInt16LE(numChannels, 22);
+    wav.writeUInt32LE(sampleRate, 24);
+    wav.writeUInt32LE(sampleRate * numChannels * bytesPerSample, 28);
+    wav.writeUInt16LE(numChannels * bytesPerSample, 32);
+    wav.writeUInt16LE(16, 34); // bits por muestra
+    wav.write("data", 36, "ascii");
+    wav.writeUInt32LE(dataSize, 40);
+
+    let offset = 44;
+    for (let i = 0; i < samples; i++) {
+      for (let ch = 0; ch < numChannels; ch++) {
+        const v = decoded.channelData[ch][i];
+        const clipped = Math.max(-1, Math.min(1, v));
+        wav.writeInt16LE((clipped * 32767) | 0, offset);
+        offset += bytesPerSample;
+      }
+    }
+
+    decoder.free();
+
+    return {
+      buffer: wav,
+      contentType: "audio/wav",
+      extension: "wav",
+    };
+  } catch (err) {
+    logger.warn(
+      `[Media] Failed to transcode Opus to WAV: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
+    return null;
+  }
+};
 
 const toSafeExt = (mimeType: string): string => {
   const clean = cleanMimeType(mimeType);
@@ -95,13 +176,23 @@ export const whatsappMediaService = {
         return null;
       }
 
-      const buffer = Buffer.from(await fileResponse.arrayBuffer());
-      const ext = toSafeExt(resolvedMime);
-      const folder = resolvedMime.startsWith("audio/")
+      const rawBuffer = Buffer.from(await fileResponse.arrayBuffer());
+
+      // Si es un audio Ogg Opus, transcodificarlo a WAV PCM para que se
+      // reproduzca en cualquier navegador (el Ogg Opus no es universal).
+      const transcoded = await transcodeOpusToWav(rawBuffer, resolvedMime);
+
+      const finalBuffer = transcoded ? transcoded.buffer : rawBuffer;
+      const finalContentType = transcoded
+        ? transcoded.contentType
+        : resolvedMime;
+      const ext = transcoded ? transcoded.extension : toSafeExt(resolvedMime);
+
+      const folder = finalContentType.startsWith("audio/")
         ? "chat/audio"
-        : resolvedMime.startsWith("image/")
+        : finalContentType.startsWith("image/")
           ? "chat/images"
-          : resolvedMime.startsWith("video/")
+          : finalContentType.startsWith("video/")
             ? "chat/videos"
             : "chat/documents";
 
@@ -110,8 +201,8 @@ export const whatsappMediaService = {
       // 3. Subir a Supabase Storage
       const uploaded = await supabaseStorage.uploadFile(
         filePath,
-        buffer,
-        resolvedMime
+        finalBuffer,
+        finalContentType
       );
 
       logger.info(`[Media] Stored incoming media at ${filePath}`);
@@ -119,7 +210,7 @@ export const whatsappMediaService = {
       return {
         url: uploaded.url,
         path: uploaded.path,
-        mimeType: resolvedMime,
+        mimeType: finalContentType,
       };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
